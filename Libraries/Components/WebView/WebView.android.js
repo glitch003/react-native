@@ -183,6 +183,11 @@ class WebView extends React.Component {
     injectJavaScript: PropTypes.func,
 
     /**
+     * Function that accepts a string that will be run before load
+     */
+    injectJavaScriptBeforeLoad: PropTypes.string,
+
+    /**
      * Specifies the mixed content mode. i.e WebView will allow a secure origin to load content from any other origin.
      *
      * Possible values for `mixedContentMode` are:
