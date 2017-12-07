@@ -399,6 +399,7 @@ public class ReactWebViewManager extends SimpleViewManager<WebView> {
       }
       @JavascriptInterface
       public String evalMe(){
+        System.out.println("called evalMe");
         return webView.getInjectJavaScriptBeforeLoad();
       }
     }, "web3");
@@ -472,6 +473,7 @@ public class ReactWebViewManager extends SimpleViewManager<WebView> {
 
   @ReactProp(name = "injectJavaScriptBeforeLoad")
   public void setInjectJavaScriptBeforeLoad(WebView view, @Nullable String injectedJavaScript) {
+    System.out.println("Setting injectJavaScriptBeforeLoad to js with length " + injectedJavaScript.length());
     ((ReactWebView) view).setInjectJavaScriptBeforeLoad(injectedJavaScript);
   }
 

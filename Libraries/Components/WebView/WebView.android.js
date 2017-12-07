@@ -305,6 +305,7 @@ class WebView extends React.Component {
         source={resolveAssetSource(source)}
         scalesPageToFit={this.props.scalesPageToFit}
         injectedJavaScript={this.props.injectedJavaScript}
+        injectJavaScriptBeforeLoad={this.props.injectJavaScriptBeforeLoad}
         userAgent={this.props.userAgent}
         javaScriptEnabled={this.props.javaScriptEnabled}
         thirdPartyCookiesEnabled={this.props.thirdPartyCookiesEnabled}
