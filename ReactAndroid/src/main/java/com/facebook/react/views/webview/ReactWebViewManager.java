@@ -221,6 +221,7 @@ public class ReactWebViewManager extends SimpleViewManager<WebView> {
    */
   protected static class ReactWebView extends WebView implements LifecycleEventListener {
     protected @Nullable String injectedJS;
+    public @Nullable String injectJavaScriptBeforeLoad;
     protected boolean messagingEnabled = false;
     protected @Nullable ReactWebViewClient mReactWebViewClient;
 
@@ -275,6 +276,14 @@ public class ReactWebViewManager extends SimpleViewManager<WebView> {
 
     public void setInjectedJavaScript(@Nullable String js) {
       injectedJS = js;
+    }
+
+    public void setInjectJavaScriptBeforeLoad(@Nullable String js) {
+      injectJavaScriptBeforeLoad = js;
+    }
+
+    public String getInjectJavaScriptBeforeLoad() {
+      return injectJavaScriptBeforeLoad;
     }
 
     protected ReactWebViewBridge createReactWebViewBridge(ReactWebView webView) {
@@ -359,7 +368,7 @@ public class ReactWebViewManager extends SimpleViewManager<WebView> {
 
   @Override
   protected WebView createViewInstance(ThemedReactContext reactContext) {
-    ReactWebView webView = createReactWebViewInstance(reactContext);
+    final ReactWebView webView = createReactWebViewInstance(reactContext);
     webView.setWebChromeClient(new WebChromeClient() {
       @Override
       public boolean onConsoleMessage(ConsoleMessage message) {
@@ -374,7 +383,25 @@ public class ReactWebViewManager extends SimpleViewManager<WebView> {
       public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback callback) {
         callback.invoke(origin, true, false);
       }
+
     });
+    webView.getSettings().setJavaScriptEnabled(true);
+    webView.addJavascriptInterface(new Object()
+    {
+      {
+        System.out.println("js interface inited");
+      }
+      @JavascriptInterface
+      public String onload()
+      {
+        System.out.println("called init()");
+        return "hello from rn";
+      }
+      @JavascriptInterface
+      public String evalMe(){
+        return webView.getInjectJavaScriptBeforeLoad();
+      }
+    }, "web3");
     reactContext.addLifecycleEventListener(webView);
     mWebViewConfig.configWebView(webView);
     webView.getSettings().setBuiltInZoomControls(true);
@@ -443,6 +470,11 @@ public class ReactWebViewManager extends SimpleViewManager<WebView> {
     ((ReactWebView) view).setInjectedJavaScript(injectedJavaScript);
   }
 
+  @ReactProp(name = "injectJavaScriptBeforeLoad")
+  public void setInjectJavaScriptBeforeLoad(WebView view, @Nullable String injectedJavaScript) {
+    ((ReactWebView) view).setInjectJavaScriptBeforeLoad(injectedJavaScript);
+  }
+
   @ReactProp(name = "messagingEnabled")
   public void setMessagingEnabled(WebView view, boolean enabled) {
     ((ReactWebView) view).setMessagingEnabled(enabled);
@@ -502,6 +534,7 @@ public class ReactWebViewManager extends SimpleViewManager<WebView> {
           }
         }
         view.loadUrl(url, headerMap);
+
         return;
       }
     }
