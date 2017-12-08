@@ -11,11 +11,22 @@ package com.facebook.react.views.webview;
 
 import javax.annotation.Nullable;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLConnection;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.ConcurrentModificationException;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Scanner;
 
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
@@ -24,10 +35,13 @@ import android.graphics.Picture;
 import android.net.Uri;
 import android.os.Build;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.ViewGroup.LayoutParams;
 import android.webkit.ConsoleMessage;
 import android.webkit.GeolocationPermissions;
 import android.webkit.WebChromeClient;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.webkit.JavascriptInterface;
@@ -61,6 +75,8 @@ import com.facebook.react.views.webview.events.TopMessageEvent;
 
 import org.json.JSONObject;
 import org.json.JSONException;
+
+import static android.content.ContentValues.TAG;
 
 /**
  * Manages instances of {@link WebView}
@@ -123,6 +139,64 @@ public class ReactWebViewManager extends SimpleViewManager<WebView> {
         reactWebView.linkBridge();
         emitFinishEvent(webView, url);
       }
+    }
+
+    @Override
+    public WebResourceResponse shouldInterceptRequest(WebView view,
+                                                      WebResourceRequest request) {
+      if (!request.isForMainFrame()) {
+        return null;
+      }
+
+      try {
+        URL url = new URL(request.getUrl().toString());
+        System.out.println("Getting url " + request.getUrl().toString());
+        HttpURLConnection c = (HttpURLConnection)url.openConnection();
+
+        for (Map.Entry<String, String> entry : request.getRequestHeaders().entrySet()) {
+          String k;
+          String v;
+          try {
+            k = entry.getKey();
+            v = entry.getValue();
+            c.setRequestProperty(k,v);
+          } catch(IllegalStateException ise) {
+            // this usually means the entry is no longer in the map.
+            throw new ConcurrentModificationException(ise);
+          }
+        }
+        String contentEncoding = c.getContentEncoding();
+        System.out.println("Content encoding is " + contentEncoding);
+        if (contentEncoding == null) {
+          contentEncoding = "UTF-8";
+        }
+        String contentType = c.getContentType();
+        if (contentType == null) {
+          return null; // can't do anything without a content type because content type is how we decide to inject
+        }
+        System.out.println("content type before stripping charset is " + contentType);
+        if (contentType.indexOf(";") != -1) {
+          contentType = contentType.substring(0, contentType.indexOf(";"));
+        }
+        System.out.println("content type after stripping charset is " + contentType);
+        if (!contentType.equalsIgnoreCase("text/html")) {
+          return null;
+        }
+        Scanner s = new Scanner(c.getInputStream(), contentEncoding).useDelimiter("\\A");
+        String possiblyHtml = s.hasNext() ? s.next() : "";
+        System.out.println("read in html of length " + possiblyHtml.length());
+        // inject our JS
+        System.out.println("injecting javascript into HTML");
+        String scriptTagWithHead = "<head><script>eval(web3maker.evalMe())</script>";
+        possiblyHtml = possiblyHtml.replaceFirst("(?i)<head>", scriptTagWithHead);
+        InputStream fixedStream = new ByteArrayInputStream(possiblyHtml.getBytes(StandardCharsets.UTF_8.name()));
+
+        return new WebResourceResponse(contentType, contentEncoding, fixedStream);
+      } catch (IOException e) {
+        Log.e(TAG, "Failed to fetch " + request.getUrl().toString());
+      }
+
+      return null;
     }
 
     @Override
@@ -388,21 +462,12 @@ public class ReactWebViewManager extends SimpleViewManager<WebView> {
     webView.getSettings().setJavaScriptEnabled(true);
     webView.addJavascriptInterface(new Object()
     {
-      {
-        System.out.println("js interface inited");
-      }
-      @JavascriptInterface
-      public String onload()
-      {
-        System.out.println("called init()");
-        return "hello from rn";
-      }
       @JavascriptInterface
       public String evalMe(){
         System.out.println("called evalMe");
         return webView.getInjectJavaScriptBeforeLoad();
       }
-    }, "web3");
+    }, "web3maker");
     reactContext.addLifecycleEventListener(webView);
     mWebViewConfig.configWebView(webView);
     webView.getSettings().setBuiltInZoomControls(true);
